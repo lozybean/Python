@@ -1,5 +1,6 @@
 import os
 import re
+from string import Template
 class settings(object):
     primer = {
         'HXT': {
@@ -51,7 +52,6 @@ class settings(object):
         },
     }
 
-    pandaseq_soft = 'pandaseq'
 
 def get_lib_method(file):
     if not os.path.isfile(file):
@@ -64,6 +64,8 @@ def get_lib_method(file):
         lib_method = 'HXT%s'%out_barcode
     elif re.match('^sam_barcode.p$',file):
         lib_method = 'Pair'
+    elif re.match('^sam_barcode.n$',file):
+        lib_method = 'Small'
     else:
         lib_method = None
     return lib_method
@@ -96,4 +98,25 @@ def rename(sample,data_type):
     if data_type == 'ITS':
         sample = 'ITS%s'%sample
     return sample
+
+def parse_sam_all(file):
+    handle = open(file)
+    for line in handle:
+        ( compact,sample_name,barcode_info,data_type,lib_method,needed_reads )  = re.split('\s+',line.strip())
+        yield  compact,sample_name,barcode_info,data_type,lib_method,needed_reads
+    handle.close()
+
+class MyTemplate(Template):
+    delimiter = '$'
+    def get(self,d):
+        return self.safe_substitute(d)
+
+def get_pandaseq_cmd(d):
+    if d['lib_method'] == 'Small':
+        t = MyTemplate('pandaseq -F -f ${read1} -r ${read2} -w ${out_file} -g $g{log_file} -l 220 -L 500')
+        pandaseq_cmd = t.get(d)
+    else:
+        t = MyTemplate('pandaseq -F -f ${read1} -r ${read2} -w ${out_file} -p ${f_primer} -q ${r_primer} -g ${log_file} -l 220 -L 500')
+        pandaseq_cmd = t.get(d)
+    return pandaseq_cmd
 

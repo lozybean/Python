@@ -3,7 +3,7 @@ import re
 import os
 import sys
 import threading
-from settings import get_lib_method,get_reads,get_unaligned
+from settings import get_lib_method,get_reads,get_unaligned,parse_sam_all
 
 class WorkStat(object):    
 
@@ -75,7 +75,7 @@ class WorkStat(object):
 
     def statAll(self):
         out = open('%s/reads_stat.xls'%self.path['QC'],'w')
-        out.write('compact\tsample_name\tdata_type\tlib_method\traw_reads\tpandaseq_reads\tHQ_reads\tHQ_ratio\tTotal_ratio\n')
+        out.write('compact\tsample_name\tdata_type\tlib_method\traw_reads\tpandaseq_reads\tHQ_reads\tHQ_ratio\tTotal_ratio\tneeded_reads\tneed_to_reseq\n')
         for compact,data_type_hash in self.sample_struct.iteritems():
             for data_type,lib_method_hash in data_type_hash.iteritems():
                 for lib_method,sampleinfo in lib_method_hash.iteritems():
@@ -90,8 +90,7 @@ class WorkStat(object):
             if t in self.__active_threads:
                 t.join()
         sort_sample_file = '%s/sam_barcode.all'%self.path['split']
-        for line in  open(sort_sample_file):
-            (compact,sample_name,barcode_info,data_type,lib_method) = re.split( '\s+', line.strip() )
+        for (compact,sample_name,barcode_info,data_type,lib_method,needed_reads) in parse_sam_all(sort_sample_file):
             key_list = [compact,data_type,lib_method,sample_name]
             if not self.check_keys( key_list , self.sample_struct ):
                 out.write('%s\t%s\t%s\t%s\t%s\t%s\n'%(compact,sample_name,data_type,lib_method,'None'))
@@ -99,7 +98,8 @@ class WorkStat(object):
             item = self.sample_struct[compact][data_type][lib_method][sample_name]
             t_ratio = int(item['HQ_reads']) / int(item['raw_reads']) * 100
             out_str = str(MyList((item['raw_reads'],item['pandaseq_reads'],item['HQ_reads'],item['HQ_ratio'])))
-            out.write('%s\t%s\t%s\t%s\t%s\t%2.2f%%\n'%(compact,sample_name,data_type,lib_method,out_str,t_ratio))
+            need_to_reseq = int(needed_reads) - int(item['HQ_reads'])
+            out.write('%s\t%s\t%s\t%s\t%s\t%2.2f%%\t%s\t%s\n'%(compact,sample_name,data_type,lib_method,out_str,t_ratio,needed_reads,need_to_reseq))
         out.close()
 
     def statUnaligned(self):
@@ -128,8 +128,8 @@ class WorkStat(object):
     
     def getSampleStruct(self):
         self.sample_struct = {}
-        for line in open('%s/sam_barcode.all'%self.path['split']):
-            compact,sample_name,barcode_info,data_type,lib_method = re.split('\s+',line.strip())
+        sam_file = '%s/sam_barcode.all'%self.path['split']
+        for ( compact,sample_name,barcode_info,data_type,lib_method,needed_reads ) in parse_sam_all(sam_file):
             if compact not in self.sample_struct:
                 self.sample_struct[compact] = {}
             if data_type not in self.sample_struct[compact]:
@@ -142,6 +142,7 @@ class WorkStat(object):
                             'HQ_reads'      :   0,
                             'HQ_ratio'      :   0,
                             'raw_reads'    :   0,
+                            'needed_reads'  :   int(needed_reads),
 }
             if lib_method not in self.total_reads:
                 self.total_reads[lib_method] = 0
