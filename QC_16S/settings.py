@@ -72,6 +72,10 @@ def get_lib_method(file):
 
 def get_primer(lib_method,data_type):
     primer = settings.primer
+    if lib_method not in primer:
+        return ('','')
+    if data_type not in primer[lib_method]:
+        return ('','')
     if lib_method.find('HXT') == 0:
         lib_method = 'HXT'
     return (primer[lib_method][data_type]['forward'],primer[lib_method][data_type]['reverse'])
@@ -113,7 +117,7 @@ class MyTemplate(Template):
 
 def get_pandaseq_cmd(d):
     if d['lib_method'] == 'Small':
-        t = MyTemplate('pandaseq -F -f ${read1} -r ${read2} -w ${out_file} -g $g{log_file} -l 220 -L 500')
+        t = MyTemplate('pandaseq -F -f ${read1} -r ${read2} -w ${out_file} -g ${log_file} -l 220 -L 500')
         pandaseq_cmd = t.get(d)
     else:
         t = MyTemplate('pandaseq -F -f ${read1} -r ${read2} -w ${out_file} -p ${f_primer} -q ${r_primer} -g ${log_file} -l 220 -L 500')
